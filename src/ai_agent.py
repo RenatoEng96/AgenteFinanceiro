@@ -15,13 +15,11 @@ class AgenteIA:
     def extrair_dados_pdf(self, texto_pdf: str, nome_empresa: str) -> dict:
         """
         Analisa o RELATÓRIO COMPLETO (100% das páginas).
-        Foca em Notas Explicativas, Endividamento Real e Vantagens Competitivas.
         """
         if not self.client or not texto_pdf: return {}
         
         print("   -> [IA] Auditando documento completo (Deep Reading)...")
         
-        # Prompt Otimizado para Contexto Longo
         prompt = f"""
         Você é um Analista de Equity Research Sênior especializado em Auditoria Contábil.
         Você recebeu o TEXTO COMPLETO do relatório da {nome_empresa}.
@@ -46,10 +44,10 @@ class AgenteIA:
         OUTPUT JSON OBRIGATÓRIO:
         {{
             "divida_liquida_total_reais": float,
-            "escala_identificada": "string (ex: 'R$ Milhares' ou 'R$ Milhões')",
-            "riscos_citados": "string (Resumo curto dos riscos reais encontrados)",
+            "escala_identificada": "string",
+            "riscos_citados": "string",
             "moat_score": int,
-            "moat_justificativa": "string (Baseada em evidências do texto)"
+            "moat_justificativa": "string"
         }}
         
         DOCUMENTO COMPLETO:
@@ -57,13 +55,12 @@ class AgenteIA:
         """
         
         try:
-            # Atenção: Chamada padrão (não-streaming) para garantir JSON válido no final
             response = self.client.models.generate_content(
                 model=config.MODEL_NAME,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    temperature=0.1 # Temperatura baixa para precisão numérica máxima
+                    temperature=0.1
                 )
             )
             return json.loads(response.text.strip())
@@ -79,34 +76,53 @@ class AgenteIA:
         moat_txt = dados.get('moat_justificativa', 'N/A')
         riscos = dados.get('riscos_citados', 'N/A')
         
-        # Formata Comparables
-        texto_comps = "N/A"
+        # Formata Comparables com dados novos
+        texto_comps = "Dados de pares insuficientes."
         if comparables:
-            premio = comparables.get('premio_pl', 0)
-            texto_comps = f"Negocia com {'PRÊMIO' if premio > 0 else 'DESCONTO'} de {abs(premio):.1%} vs pares."
+            desc_pl = comparables.get('desconto_pl', 0)
+            desc_ev = comparables.get('desconto_evebitda', 0)
+            implied_pl = comparables['precos_implicitos'].get('Target_PL', 0)
+            
+            status_pl = "DESCONTO" if desc_pl < 0 else "PRÊMIO"
+            texto_comps = f"""
+            A empresa negocia com {status_pl} de {abs(desc_pl):.1%} no P/L em relação à média do setor.
+            Se negociasse no múltiplo médio de P/L dos pares, a ação valeria R$ {implied_pl:.2f}.
+            """
 
         prompt = f"""
-        Escreva um MEMORANDO DE INVESTIMENTO PROFISSIONAL (Hedge Fund Style) sobre {dados.get('ticker')}.
+        Escreva um MEMORANDO DE INVESTIMENTO PROFISSIONAL (Hedge Fund Style - Longo e Detalhado) sobre {dados.get('ticker')}.
+        Seja extremamente rigoroso na matemática. Use termos técnicos (Upside, CAGR, WACC, Moat).
         
         CONTEXTO ESTRATÉGICO:
         - Empresa: {dados.get('nome')}
         - Perfil: {perfil}
         - Moat Score: {dados.get('moat_score', 'N/A')}/10 ({moat_txt})
         
-        VALUATION & NUMBERS:
+        1. ANÁLISE INTRÍNSECA (DCF & Modelos Absolutos):
         - Preço Tela: R$ {dados.get('cotacao')}
-        - Valor Justo (DCF): R$ {dcf.get('Valor')} (Upside: {dcf.get('Margem')}%)
-        - Expectativa Implícita (Reverse DCF): Mercado precifica crescimento de {rev_dcf.get('Implied_Growth', 0):.1%} a.a.
-        - Relativo: {texto_comps}
+        - Valor Justo (DCF): R$ {dcf.get('Valor')} (Margem: {dcf.get('Margem')}%)
+        - Premissas do DCF: WACC de {dcf.get('Premissas', {}).get('WACC')} e Crescimento (g) de {dcf.get('Premissas', {}).get('Cresc.')}.
+        - Expectativa Implícita (Reverse DCF): O mercado precifica um crescimento de {rev_dcf.get('Implied_Growth', 0):.1%} a.a. para justificar o preço atual.
         
-        RISCOS AUDITADOS (Do PDF Completo):
+        2. ANÁLISE RELATIVA (Múltiplos de Mercado):
+        - {texto_comps}
+        - Compare a qualidade da empresa (ROE: {dados.get('roe'):.1%}) com a média do setor. Se o ROE for maior e o P/L menor, destaque a ASSIMETRIA CLARA.
+        
+        3. RISCOS AUDITADOS (Forensics):
         - {riscos}
         
-        ESTRUTURA DO PARECER:
-        1. **Tese de Investimento:** Por que ter (ou não) esse papel? Use os dados do Moat.
-        2. **Análise de Valor:** O DCF e os Múltiplos conversam? O mercado está racional?
-        3. **Fatores de Risco:** Comente os riscos extraídos do PDF.
-        4. **Veredito Final:** (COMPRA FORTE / COMPRA / MANTER / VENDA).
+        ESTRUTURA OBRIGATÓRIA DO MEMORANDO:
+        ## 1. Tese de Investimento (The Pitch)
+        Explique o racional qualitativo e quantitativo. Relacione o Moat Score com a capacidade de gerar caixa.
+        
+        ## 2. Valuation: O Confronto de Modelos
+        Discuta a discrepância entre o DCF (Valor Intrínseco) e os Múltiplos (Valor Relativo). Qual modelo devemos confiar mais neste caso dado o perfil da empresa?
+        
+        ## 3. Análise de Riscos (The Bear Case)
+        Não seja superficial. Analise os riscos citados e o impacto no WACC.
+        
+        ## 4. Veredito e Recomendação
+        Defina claramente: COMPRA (Buy), MANTER (Hold) ou VENDA (Sell). Justifique com a Margem de Segurança.
         """
         
         try:
