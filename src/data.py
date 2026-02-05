@@ -78,7 +78,14 @@ def obter_dados_yahoo(ticker: str) -> dict:
             "total_acoes": shares,
             "setor": info.get('sector', 'Unknown'),
             "industria": info.get('industry', 'Unknown'),
-            "nome": info.get('longName', ticker)
+            "nome": info.get('longName', ticker),
+            # Dados Forenses
+            "receita_liquida": info.get('totalRevenue', 0),
+            "ebitda": info.get('ebitda', 0),
+            "lucro_liquido": info.get('netIncomeToCommon', 0),
+            "fluxo_caixa_operacional": ocf,
+            "divida_total": total_debt,
+            "caixa_total": cash
         }
     except Exception as e:
         print(f"Erro Yahoo ({ticker}): {e}")

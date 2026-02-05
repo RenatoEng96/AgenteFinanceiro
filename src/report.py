@@ -65,19 +65,33 @@ def gerar_pdf_v11(dados, valuation, comparables, parecer_texto, perfil_empresa):
         
         data_val = [["Modelo", "Foco", "Preço Justo", "Upside", "Status"]]
         
+        # Mapa de Foco por Modelo
+        mapa_foco = {
+            "DCF / DDM": "Fluxo de Caixa / Dividendos",
+            "Graham": "Lucro & Valor Patrimonial",
+            "Bazin": "Dividend Yield",
+            "Peter Lynch": "Crescimento (PEG)"
+        }
+        
         for model_name, model_data in [("DCF / DDM", dcf), ("Graham", graham), ("Bazin", bazin), ("Peter Lynch", lynch)]:
              if model_data:
                 valor = model_data.get('Valor') or model_data.get('Preco_Teto')
                 margem = model_data.get('Margem')
+                
+                # Nome de Foco personalizado ou padrão
+                foco_display = mapa_foco.get(model_name, "Intrínseco")
+                if model_data.get('Tipo') == 'Modelo de Dividendos (DDM)':
+                    foco_display = "Dividendos Futuros"
+                
                 status = "Aguardando"
                 if isinstance(margem, (int, float)):
                     status = "Descontado" if margem > 0 else "Caro"
                     margem = f"{margem}%"
                 
                 if valor and valor > 0:
-                    data_val.append([model_name, "Intrínseco", f"R$ {valor}", margem, status])
+                    data_val.append([model_name, foco_display, f"R$ {valor}", margem, status])
 
-        t_val = Table(data_val, colWidths=[4*cm, 3.5*cm, 3.5*cm, 2.5*cm, 3.5*cm])
+        t_val = Table(data_val, colWidths=[4*cm, 4.5*cm, 3.5*cm, 2.0*cm, 2.5*cm])
         t_val.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1A237E")),
             ('TEXTCOLOR', (0,0), (-1,0), colors.white),
@@ -85,6 +99,74 @@ def gerar_pdf_v11(dados, valuation, comparables, parecer_texto, perfil_empresa):
             ('ALIGN', (2,0), (-1,-1), 'CENTER'),
         ]))
         story.append(t_val)
+        
+        # --- 2.1 BOX DE PREMISSAS (CRITÉRIOS) ---
+        story.append(Spacer(1, 0.3*cm))
+        premissas = dcf.get('Premissas', {})
+        if premissas:
+             story.append(Paragraph(f"<b>Premissas do Modelo (Critérios):</b> WACC {premissas.get('WACC')} | Crescimento de Longo Prazo (g) {premissas.get('Cresc.')} | " +
+                                    f"Estágio 1: {valuation.get('params', {}).get('anos_estagio1', 5)} anos", style_small))
+        
+        # --- 2.2 AUDITORIA FORENSE & CHECKS ---
+        forensic = valuation.get('Forensic', {})
+        if forensic:
+            story.append(Spacer(1, 0.4*cm))
+            story.append(Paragraph(f"<b>Auditoria Forense e Qualidade (Score: {forensic.get('Score')}/10):</b>", style_normal))
+            flags = forensic.get('Flags', [])
+            if not flags:
+                story.append(Paragraph("• Nenhuma anomalia contábil detectada nos critérios auditados.", style_small))
+            else:
+                for flag in flags:
+                    story.append(Paragraph(f"• {flag}", style_destaque_box))
+
+        # --- 2.3 MATRIZ DE SENSIBILIDADE ---
+        sensibilidade = valuation.get('Sensibilidade')
+        if sensibilidade and sensibilidade.get('Matriz'):
+            story.append(Spacer(1, 0.4*cm))
+            story.append(Paragraph("<b>Análise de Sensibilidade (WACC vs Crescimento):</b>", style_normal))
+            
+            wacc_labels = sensibilidade['Labels_WACC']
+            g_labels = ["g: " + g for g in sensibilidade['Labels_Growth']]
+            matriz = sensibilidade['Matriz']
+            
+            # Header Row
+            data_sens = [["WACC ->"] + wacc_labels]
+            
+            # Data Rows
+            current_price = dados.get('cotacao', 0)
+            
+            for i, row in enumerate(matriz):
+                # Row info: [Growth Label, Val1, Val2, Val3]
+                display_row = [g_labels[i]]     
+                for val in row:
+                     display_row.append(f"R$ {val:.2f}")
+                data_sens.append(display_row)
+                
+            t_sens = Table(data_sens, colWidths=[3*cm, 3*cm, 3*cm, 3*cm])
+            
+            # Estilização Condicional (Heatmap)
+            styles_sens = [
+                ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey), # Header de WACC
+                ('BACKGROUND', (0,0), (0,-1), colors.lightgrey), # Header de Growth
+                ('ALIGN', (1,1), (-1,-1), 'CENTER'),
+            ]
+            
+            # Colorir celulas baseado no preço atual
+            for r in range(1, 4): # Linhas de dados (1 a 3)
+                for c in range(1, 4): # Colunas de dados (1 a 3)
+                     val = matriz[r-1][c-1]
+                     if val > current_price * 1.15: # > 15% upside
+                         bg = colors.HexColor("#C8E6C9") # Green
+                     elif val < current_price:
+                         bg = colors.HexColor("#FFCDD2") # Red
+                     else:
+                         bg = colors.HexColor("#FFF9C4") # Yellow
+                     
+                     styles_sens.append(('BACKGROUND', (c, r), (c, r), bg))
+
+            t_sens.setStyle(TableStyle(styles_sens))
+            story.append(t_sens)
         
         # --- 3. ANÁLISE RELATIVA (A GRANDE MUDANÇA) ---
         if comparables:

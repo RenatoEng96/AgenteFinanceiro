@@ -7,7 +7,7 @@ from src.ai_agent import AgenteIA
 from src.report import gerar_pdf_v11
 
 def main():
-    print("\n--- 🤖 AGENTE FINANCEIRO V12 (RIGOROSO) ---\n")
+    print("\n--- AGENTE FINANCEIRO V12 (RIGOROSO) ---\n")
     ticker = input("Ticker (ex: WEGE3, PETR4): ").strip().upper() or "WEGE3"
     
     # 1. Instancia Agentes
@@ -57,8 +57,8 @@ def main():
         print(f"   [RELATIVO] Preço Implícito (P/L): R$ {precos.get('Target_PL', 0):.2f}")
 
     # 7. Geração de Parecer (IA) e PDF
-    print("\n--- Gerando Tese de Investimento Detalhada ---")
-    parecer = agente_ia.gerar_parecer_final(dados, res_valuation, res_comparables, perfil)
+    print("\n--- Gerando Tese de Investimento Detalhada (Hedge Fund Style) ---")
+    parecer = agente_ia.gerar_parecer_final(dados, res_valuation, res_comparables, perfil, params)
     
     print("\n" + parecer)
     

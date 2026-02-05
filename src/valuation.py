@@ -18,6 +18,7 @@ class ValuationEngine:
         self._graham()
         self._bazin()
         self._peter_lynch()
+        self._forensic_analysis()
         
         # Seleção de Engine Específica
         engine_type = self.params.get('engine', 'PADRAO')
@@ -201,17 +202,96 @@ class ValuationEngine:
             'Valor': round(valor_final, 2),
             'Margem': self._calc_margem(valor_final),
             'Premissas': {
-                'Ke (Custo)': f"{ke:.1%}", 
-                'ROE': f"{roe:.1%}",
-                'Cresc. (g)': f"{g_final:.1%}"
+                'WACC': f"{ke:.1%}",  # Usamos Ke como WACC para manter compatibilidade com o report
+                'Cresc.': f"{g_final:.1%}",
+                'ROE': f"{roe:.1%}"
             }
+        }
+        
+        # Gera Sensibilidade para Bancos (Ke vs g)
+        ke_range = [ke + 0.01, ke, ke - 0.01]
+        g_range = [g_final - 0.01, g_final, g_final + 0.01]
+        
+        matriz = []
+        for g_sens in g_range:
+            linha = []
+            for k_sens in ke_range:
+                # Gordon simples para sensibilidade
+                if k_sens > g_sens:
+                    v = div_projetado / (k_sens - g_sens)
+                    # Média com Justified P/B (assumindo ROE constante)
+                    justified_pvp = (roe - g_sens) / (k_sens - g_sens)
+                    v_just = vpa * justified_pvp
+                    linha.append((v + v_just)/2)
+                else:
+                    linha.append(0)
+            matriz.append(linha)
+            
+        self.resultados['Sensibilidade'] = {
+            'Matriz': matriz,
+            'Labels_WACC': [f"{k:.1%}" for k in ke_range],
+            'Labels_Growth': [f"{g:.1%}" for g in g_range]
         }
         
         # OBS: Para bancos, não fazemos Reverse DCF de fluxo de caixa operacional,
         # pois a métrica é distorcida. Deixamos vazio ou adaptamos futuramente.
-        self.resultados['Reverse_DCF'] = None
+        self.resultados['Reverse_DCF'] = {}
 
     def _calc_margem(self, target):
         price = self.dados.get('cotacao')
         if not price or target == 0: return 0.0
         return round(((target - price) / price) * 100, 1)
+
+    def _forensic_analysis(self):
+        """
+        Realiza checagens de qualidade contábil e solvência.
+        1. Beneish M-Score Simplificado (Fluxo vs Lucro)
+        2. Solvência (Dívida Liq / EBITDA)
+        3. Altman Z-Score Simplificado (Proxy)
+        """
+        flags = []
+        score = 10 # Começa com nota 10
+        
+        # 1. Earnings Quality (Lucro Líquido vs FCO)
+        lucro = self.dados.get('lucro_liquido', 0)
+        fco = self.dados.get('fluxo_caixa_operacional', 0)
+        
+        if lucro > 0 and fco > 0:
+            ratio_accruals = (lucro - fco) / abs(lucro)
+            # Se o Lucro é muito maior que o Caixa (> 20% acima), pode indicar contabilização agressiva
+            if ratio_accruals > 0.20:
+                flags.append(f"ALERTA: Lucro Líquido excede FCO em {ratio_accruals:.1%}. Possível 'Accruals' excessivos.")
+                score -= 2
+        elif lucro > 0 and fco < 0:
+             flags.append("PERIGO: Empresa lucra mas queima caixa operacional (Divergência Grave).")
+             score -= 4
+
+        # 2. Solvência (Alavancagem)
+        div_liq = self.dados.get('total_debt', 0) - self.dados.get('caixa_total', 0) 
+        # Fallback de divida liquida se nao vier no get anterior (mas data.py ja calcula)
+        # Vamos usar o que veio no self.dados
+        ebitda = self.dados.get('ebitda', 0)
+        
+        # Recalcula net debt caso nao tenha vindo direto
+        if 'divida_total' in self.dados:
+             div_liq = self.dados['divida_total'] - self.dados.get('caixa_total', 0)
+
+        if ebitda > 0:
+            lev = div_liq / ebitda
+            if lev > 3.5:
+                flags.append(f"RISCO: Alavancagem Alta (Dívida Líq/EBITDA = {lev:.1f}x).")
+                score -= 2
+            elif lev > 5.0:
+                flags.append(f"CRÍTICO: Alavancagem Perigosa ({lev:.1f}x). Risco de Solvência.")
+                score -= 3
+        
+        # 3. Margem Líquida Negativa Recorrente (Proxy de Z-Score fraco)
+        if self.dados.get('margem_liq', 0) < -0.05:
+            flags.append("ATENÇÃO: Margens Líquidas profundamente negativas. Queima de valor.")
+            score -= 1
+            
+        self.resultados['Forensic'] = {
+             'Score': max(0, score),
+             'Flags': flags, 
+             'Verdict': "Contabilidade Vigorosa" if score >= 8 else "Sinais de Alerta" if score >= 5 else "Alto Risco Contábil"
+        }

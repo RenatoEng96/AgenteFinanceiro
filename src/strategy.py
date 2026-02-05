@@ -90,6 +90,19 @@ class Estrategista:
         # Trava de segurança (WACC/Ke Floor e Cap)
         self.params['wacc_base'] = max(0.09, min(taxa_desconto, 0.25))
         
+        # --- 5. AJUSTE MACROECONÔMICO (NOVO) ---
+        # Refina o crescimento (g) com base no Ciclo
+        contexto = dados_capm.get('contexto_macro', {})
+        ciclo = contexto.get('ciclo', 'NEUTRO')
+        
+        if ciclo.startswith("CONTRACIONISTA"):
+            # Juros Reais altos (>6%) punem o crescimento
+            self.params['g_estagio1'] = max(0, self.params['g_estagio1'] - 0.015) 
+            self.perfil += " [Macro Headwind]"
+        elif ciclo.startswith("EXPANSIONISTA"):
+            # Juros Reais baixos estimulam, mas mantemos conservadorismo
+            self.perfil += " [Macro Tailwind]"
+            
         # Guarda os metadados
         self.params['capm_data'] = dados_capm
         
