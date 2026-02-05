@@ -1,6 +1,7 @@
 import os
 import yfinance as yf
 import pypdf
+import re
 
 def obter_dados_yahoo(ticker: str) -> dict:
     """
@@ -84,15 +85,44 @@ def obter_dados_yahoo(ticker: str) -> dict:
         return {}
 
 def ler_pdf_local(caminho: str) -> str:
-    """Lê um PDF local e extrai texto das primeiras páginas."""
+    """
+    Lê 100% do conteúdo de um PDF local.
+    Realiza limpeza básica para otimizar tokens da IA.
+    """
     if not caminho: return None
+    
+    # Tratamento de string do caminho (remove aspas extras que o Windows poe)
     caminho = caminho.strip('"').strip("'")
-    if not os.path.exists(caminho): return None
+    
+    if not os.path.exists(caminho):
+        print(f"   [ERRO] Arquivo não encontrado: {caminho}")
+        return None
+        
     try:
+        print(f"   -> [I/O] Lendo arquivo completo: {os.path.basename(caminho)}...")
+        texto_completo = []
+        
         with open(caminho, 'rb') as f:
             pdf = pypdf.PdfReader(f)
-            # Limita a 20 páginas para não sobrecarregar tokens
-            return "\n".join([p.extract_text() for p in pdf.pages[:20] if p.extract_text()])
+            num_paginas = len(pdf.pages)
+            print(f"      Processando {num_paginas} páginas...")
+            
+            for i, page in enumerate(pdf.pages):
+                texto_pag = page.extract_text()
+                if texto_pag:
+                    # Opcional: Adicionar marcador de página para a IA se referenciar
+                    texto_completo.append(f"--- PÁGINA {i+1} ---")
+                    texto_completo.append(texto_pag)
+        
+        full_text = "\n".join(texto_completo)
+        
+        # Limpeza básica para economizar tokens (remove excesso de quebras de linha)
+        # Substitui 3 ou mais quebras de linha por apenas duas
+        full_text = re.sub(r'\n{3,}', '\n\n', full_text)
+        
+        print(f"      Leitura concluída. Total de caracteres: {len(full_text)}")
+        return full_text
+
     except Exception as e:
-        print(f"Erro ao ler PDF: {e}")
+        print(f"   [ERRO] Falha ao ler PDF: {e}")
         return None
