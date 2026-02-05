@@ -6,7 +6,7 @@ class ValuationEngine:
         self.params = estrategia_params
         self.resultados = {}
         
-        # Ajusta dívida (prioriza PDF se houver)
+        # Ajusta dívida
         divida_pdf = self.dados.get('divida_liquida_total_reais')
         if divida_pdf is not None:
             self.net_debt_per_share = divida_pdf / self.dados.get('total_acoes', 1)
@@ -14,16 +14,27 @@ class ValuationEngine:
             self.net_debt_per_share = self.dados.get('divida_liquida_por_acao', 0)
 
     def run(self) -> dict:
+        # Métodos Universais
         self._graham()
         self._bazin()
         self._peter_lynch()
-        self._dcf_adaptativo() 
-        self._dcf_sensibilidade()
-        self._reverse_dcf()
+        
+        # Seleção de Engine Específica
+        engine_type = self.params.get('engine', 'PADRAO')
+        
+        if engine_type == 'FINANCEIRO':
+            # Bancos e Seguradoras usam Dividend Discount Model
+            self._valuation_financeiro()
+        else:
+            # Indústria e Comércio usam DCF Padrão
+            self._dcf_adaptativo()
+            self._dcf_sensibilidade()
+            self._reverse_dcf()
+            
         return self.resultados
 
     def _graham(self):
-        """Fórmula Clássica de Graham: VI = Raiz(22.5 * LPA * VPA)"""
+        """VI = Raiz(22.5 * LPA * VPA)"""
         lpa = self.dados.get('lpa_oficial') or self.dados.get('lpa_yahoo')
         vpa = self.dados.get('vpa_oficial') or self.dados.get('vpa_yahoo')
         
@@ -34,7 +45,7 @@ class ValuationEngine:
             self.resultados['Graham'] = {'Valor': 0, 'Margem': 'N/A'}
 
     def _bazin(self):
-        """Preço Teto Bazin: Dividendos / 6%"""
+        """Preço Teto = Dividendos / 6%"""
         div = self.dados.get('div_12m')
         if div and div > 0:
             teto = div / 0.06
@@ -47,12 +58,11 @@ class ValuationEngine:
             self.resultados['Bazin'] = {'Preco_Teto': 0, 'Margem': 'N/A'}
 
     def _peter_lynch(self):
-        """Lynch Fair Value: PEG Ratio simplificado"""
+        """Fair PE = Growth + Yield"""
         lpa = self.dados.get('lpa_oficial') or self.dados.get('lpa_yahoo') or 0
         if lpa > 0:
             g_proj = self.params['g_estagio1'] * 100
             dy = (self.dados.get('dy_anual') or 0) * 100
-            # Multiplicador = Growth + Yield (Limitado a 40x para sanidade)
             multiplicador_justo = min(g_proj + dy, 40.0)
             fair_value = lpa * multiplicador_justo
             
@@ -62,11 +72,8 @@ class ValuationEngine:
                 'Multiplicador_Justo': f"{multiplicador_justo:.1f}x"
             }
 
+    # --- ENGINE 1: DCF PADRÃO (INDÚSTRIA) ---
     def _calcular_dcf_isolado(self, wacc, g1, anos_g1):
-        """
-        Função auxiliar pura para calcular DCF dado um WACC e um Crescimento.
-        Usada pelo DCF Principal, Sensibilidade e Reverse DCF.
-        """
         fcff_base = self.dados.get('fcff_por_acao')
         if not fcff_base or fcff_base < 0: return 0 
         
@@ -76,15 +83,11 @@ class ValuationEngine:
         ev_sum = 0
         fluxo = fcff_norm
         
-        # Estágio 1: Crescimento Explícito
         for t in range(1, anos_g1 + 1):
             fluxo *= (1 + g1)
             ev_sum += fluxo / ((1 + wacc) ** t)
             
-        # Estágio 2: Perpetuidade (Gordon Growth)
-        g2 = 0.03 # Perpetuidade inflacionária (3%)
-        # Fórmula Valor Terminal: [FCFF_n * (1+g2)] / (WACC - g2)
-        # Se WACC <= g2, o modelo quebra (divisão por zero ou negativo), então travamos g2
+        g2 = 0.03
         g_perpetuidade = min(g2, wacc - 0.01)
         
         vt = (fluxo * (1 + g_perpetuidade)) / (wacc - g_perpetuidade)
@@ -101,9 +104,10 @@ class ValuationEngine:
         valor = self._calcular_dcf_isolado(wacc, g1, anos)
         
         self.resultados['DCF_Adaptativo'] = {
+            'Tipo': 'DCF (Fluxo de Caixa)', # Label para o relatório
             'Valor': round(valor, 2),
             'Margem': self._calc_margem(valor),
-            'Premissas': {'WACC': f"{wacc:.1%}", 'Cresc_Fase1': f"{g1:.1%}", 'Anos': anos}
+            'Premissas': {'WACC': f"{wacc:.1%}", 'Cresc.': f"{g1:.1%}"}
         }
 
     def _dcf_sensibilidade(self):
@@ -111,8 +115,8 @@ class ValuationEngine:
         g_base = self.params['g_estagio1']
         anos = self.params['anos_estagio1']
         
-        wacc_range = [wacc_base + 0.01, wacc_base, wacc_base - 0.01] # +1%, Base, -1%
-        g_range = [g_base - 0.015, g_base, g_base + 0.015]           # -1.5%, Base, +1.5%
+        wacc_range = [wacc_base + 0.01, wacc_base, wacc_base - 0.01] 
+        g_range = [g_base - 0.015, g_base, g_base + 0.015]           
         
         matriz = []
         for g in g_range:
@@ -129,35 +133,83 @@ class ValuationEngine:
         }
 
     def _reverse_dcf(self):
-        """
-        Engenharia Reversa: Qual 'g' (Crescimento) justifica o preço atual?
-        Usa Método da Bisseção.
-        """
         target_price = self.dados.get('cotacao')
         if not target_price or target_price <= 0: return
 
         wacc = self.params['wacc_base']
         anos = self.params['anos_estagio1']
         
-        low, high = -0.20, 0.80 # Range de busca (-20% a +80% crescimento a.a.)
+        low, high = -0.20, 0.80 
         implied_g = 0
         
         for _ in range(30):
             mid = (low + high) / 2
             val = self._calcular_dcf_isolado(wacc, mid, anos)
             
-            if abs(val - target_price) < 0.10: # Convergência (10 centavos)
+            if abs(val - target_price) < 0.10: 
                 implied_g = mid
                 break
-            elif val > target_price:
-                high = mid # Preço calculado alto demais -> Reduz crescimento
-            else:
-                low = mid # Preço calculado baixo demais -> Aumenta crescimento
+            elif val > target_price: high = mid 
+            else: low = mid 
         
         self.resultados['Reverse_DCF'] = {
             'Implied_Growth': implied_g,
             'Target_Price': target_price
         }
+
+    # --- ENGINE 2: FINANCEIRO (BANCOS/SEGURADORAS) ---
+    def _valuation_financeiro(self):
+        """
+        Para bancos, usamos o Modelo de Gordon Modificado (Dividendos) e Justified P/B.
+        Fórmula Gordon: P = D1 / (Ke - g)
+        Fórmula Justified P/B: (ROE - g) / (Ke - g)
+        """
+        ke = self.params['wacc_base'] # Ke (Custo de Equity)
+        roe = self.dados.get('roe', 0.15)
+        vpa = self.dados.get('vpa_oficial') or self.dados.get('vpa_yahoo') or 1
+        
+        # Payout Ratio estimado (Bancos BR pagam ~50% historicamente)
+        payout = 0.50
+        
+        # Crescimento Sustentável (Sustainable Growth Rate)
+        # g = ROE * (1 - Payout)
+        g_sustentavel = roe * (1 - payout)
+        
+        # Trava de Segurança Matemática:
+        # Se g >= Ke, o modelo explode (valor infinito).
+        # Em bancos de alta qualidade (ROE 20%), g pode ser > Ke (14%).
+        # Nesses casos, limitamos o g perpétuo a Ke - 2% para conservadorismo.
+        g_final = min(g_sustentavel, ke - 0.02)
+        
+        # D1 = Dividendo projetado próximo ano
+        lpa = self.dados.get('lpa_oficial') or self.dados.get('lpa_yahoo') or 0
+        div_projetado = (lpa * payout) * (1 + g_final)
+        
+        # 1. Modelo de Gordon (Dividendos)
+        valor_gordon = div_projetado / (ke - g_final)
+        
+        # 2. Modelo Justified P/VP (Excesso de Retorno)
+        # Multiplo Justo = (ROE - g) / (Ke - g)
+        justified_pvp = (roe - g_final) / (ke - g_final)
+        valor_justified = vpa * justified_pvp
+        
+        # Média dos dois métodos financeiros
+        valor_final = (valor_gordon + valor_justified) / 2
+        
+        self.resultados['DCF_Adaptativo'] = {
+            'Tipo': 'Modelo de Dividendos (DDM)', # Sobrescreve label DCF
+            'Valor': round(valor_final, 2),
+            'Margem': self._calc_margem(valor_final),
+            'Premissas': {
+                'Ke (Custo)': f"{ke:.1%}", 
+                'ROE': f"{roe:.1%}",
+                'Cresc. (g)': f"{g_final:.1%}"
+            }
+        }
+        
+        # OBS: Para bancos, não fazemos Reverse DCF de fluxo de caixa operacional,
+        # pois a métrica é distorcida. Deixamos vazio ou adaptamos futuramente.
+        self.resultados['Reverse_DCF'] = None
 
     def _calc_margem(self, target):
         price = self.dados.get('cotacao')
