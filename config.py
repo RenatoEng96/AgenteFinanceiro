@@ -7,7 +7,7 @@ GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
 
 # --- CONFIGURAÇÃO DE MODELO ---
 # Modelos Gemini que funcionam - gemini-2.5-flash - gemini-3-flash-preview - Inserir um deles dentro das aspas abaixo
-MODEL_NAME = "gemini-2.5-flash" 
+MODEL_NAME = "gemini-3-flash-preview" 
 
 # --- MAPA DE PARES (COMPARABLES) ---
 # Dicionário que mapeia setores (em inglês, padrão Yahoo) para tickers da B3
