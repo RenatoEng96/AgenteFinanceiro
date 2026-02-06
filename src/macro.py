@@ -15,6 +15,7 @@ class MacroEconomia:
         self.selic_padrao = 11.25
         self.ipca_padrao = 4.50
         self.equity_risk_premium = 0.06  # Prêmio de Risco de Mercado (6%)
+        self.country_risk_premium = 0.025 # Risco Brasil (Spread CDS 5Y ~ 250bps)
 
     def get_macro_data(self):
         """
@@ -72,12 +73,14 @@ class MacroEconomia:
         # para evitar taxas de desconto irrealisticamente baixas.
         beta_ajustado = max(0.5, beta) if beta else 1.0
         
-        ke = rf + (beta_ajustado * self.equity_risk_premium)
+        # Fórmula CAPM Ajustada: Rf + Beta*ERP + Country Risk
+        ke = rf + (beta_ajustado * self.equity_risk_premium) + self.country_risk_premium
         
         return {
             'ke': round(ke, 4),
             'rf_usado': rf,
             'beta_usado': beta_ajustado,
             'erp_usado': self.equity_risk_premium,
+            'risk_country_usado': self.country_risk_premium,
             'contexto_macro': macro_data
         }

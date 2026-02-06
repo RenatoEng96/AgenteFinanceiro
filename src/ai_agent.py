@@ -109,6 +109,19 @@ class AgenteIA:
             Se negociasse no múltiplo médio de P/L dos pares, a ação valeria R$ {implied_pl:.2f}.
             """
 
+        # Extração de Monte Carlo
+        monte_carlo = valuation.get('Monte_Carlo', {})
+        mc_text = "Simulação não realizada."
+        if 'Mean' in monte_carlo:
+            mc_text = f"""
+            - Preço Médio: R$ {monte_carlo['Mean']} | Mediana: R$ {monte_carlo['Median']}
+            - Cenário Pessimista (VaR 5%): R$ {monte_carlo['VaR_5_Percent']}
+            - Cenário Otimista (95%): R$ {monte_carlo['Upside_95_Percent']}
+            - Probabilidade de Upside (vs R$ {dados.get('cotacao')}): {monte_carlo['Upside_Prob']}
+            """
+        elif 'Status' in monte_carlo:
+            mc_text = f"Simulação abortada: {monte_carlo['Status']}"
+
         prompt = f"""
         Atue como um SÓCIO SÊNIOR de um Fundo Multi-Estratégia Global. Escreva um MEMORANDO DE INVESTIMENTO de alta convicção sobre {dados.get('ticker')}.
         
@@ -124,26 +137,30 @@ class AgenteIA:
 
         DADOS DA EMPRESA:
         - Ticker: {dados.get('ticker')} ({dados.get('nome')})
-        - Cotação: R$ {dados.get('cotacao')}
+        - Cotação: R$ {dados.get('cotacao')} | Market Cap: R$ {dados.get('market_cap', 0)/1e9:.2f}B
         - Perfil Estratégico: {perfil}
-        - ROE: {dados.get('roe'):.1%} | P/L: {dados.get('pl')}x | Div. Yield: {dados.get('dy_anual'):.1%}
+        - ROE: {dados.get('roe'):.1%} | Margem Líq: {dados.get('margem_liq', 0):.1%}
+        - Múltiplos: P/L {dados.get('pl')}x | EV/EBITDA {dados.get('ev_ebitda')}x | P/VP {dados.get('pvp')}x | DY {dados.get('dy_anual'):.1%}
         - Moat Score: {dados.get('moat_score', 'N/A')}/10 ({moat_txt})
 
         AUDITORIA & VALUATION:
         1. VALUATION INTRÍNSECO (DCF):
-           - Valor Justo: R$ {dcf.get('Valor')} (Margem: {dcf.get('Margem')}%)
+           - Valor Justo (Determinístico): R$ {dcf.get('Valor')} (Margem: {dcf.get('Margem')}%)
            - WACC Usado: {dcf.get('Premissas', {}).get('WACC')} | Crescimento (g): {dcf.get('Premissas', {}).get('Cresc.')}
            - Reverse DCF: O mercado precifica crescimento implícito de {rev_dcf.get('Implied_Growth', 0):.1%} a.a. (Se aplicável).
 
-        2. VALUATION RELATIVO (PARES):
+        2. SIMULAÇÃO DE MONTE CARLO (PROBABILÍSTICA):
+           {mc_text}
+
+        3. VALUATION RELATIVO (PARES):
            - {texto_comps}
         
-        3. AUDITORIA FORENSE (QUALIDADE CONTÁBIL):
+        4. AUDITORIA FORENSE (QUALIDADE CONTÁBIL):
            - Score de Qualidade: {forensic.get('Score', 10)}/10
            - Alertas detectados pelo algoritmo:
            {forensic_text}
            
-        4. RISCOS REPORTADOS:
+        5. RISCOS REPORTADOS:
            - {riscos}
 
         ESTRUTURA OBRIGATÓRIA DO MEMORANDO:
@@ -175,6 +192,6 @@ class AgenteIA:
                 model=config.MODEL_NAME,
                 contents=prompt
             )
-            return response.text
+            return response.text, prompt
         except Exception as e:
-            return f"Erro ao gerar parecer: {e}"
+            return f"Erro ao gerar parecer: {e}", prompt

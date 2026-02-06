@@ -20,9 +20,35 @@ def obter_dados_yahoo(ticker: str) -> dict:
         total_debt = info.get('totalDebt', 0)
         cash = info.get('totalCash', 0)
         net_debt = total_debt - cash
-        shares = info.get('sharesOutstanding', 1)
-        if not shares: shares = 1
+        shares = info.get('sharesOutstanding', 1) or 1
         net_debt_per_share = net_debt / shares
+
+        # Dados para WACC
+        market_cap = info.get('marketCap', 0)
+        interest_expense = info.get('interestExpense', 0) # Despesa financeira (geralmente negativa no yahoo)
+        pre_tax_income = info.get('preTaxIncome', 0)
+        tax_provision = info.get('taxProvision', 0)
+        
+        # 1. Taxa de Imposto Efetiva (Tax Rate)
+        # Se não houver dados, assume 34% (padrão Brasil)
+        tax_rate = 0.34
+        if pre_tax_income and pre_tax_income != 0 and tax_provision:
+            calc_tax = tax_provision / pre_tax_income
+            # Limita entre 0% e 45% para evitar distorções de anos atípicos
+            if 0 < calc_tax < 0.45:
+                tax_rate = calc_tax
+        
+        # 2. Custo da Dívida (Kd)
+        # Estimation: Interest Expense / Total Debt
+        # Se expense vier negativo, inverte sinal.
+        cost_of_debt = 0.12 # Fallback conservador (12% a.a)
+        if total_debt > 0 and interest_expense:
+             # Interest expense costuma vir negativo ou positivo dependendo da versao do yahoo. 
+             # Garantimos valor absoluto.
+             kd_calc = abs(interest_expense) / total_debt
+             # Filtro de sanidade: Kd entre 1% e 30%
+             if 0.01 < kd_calc < 0.30:
+                 cost_of_debt = kd_calc
 
         # Fluxo de Caixa (FCFF Estimado)
         ocf = info.get('operatingCashflow', 0)
@@ -59,9 +85,14 @@ def obter_dados_yahoo(ticker: str) -> dict:
         roe = info.get('returnOnEquity')
         if roe is None: roe = 0.10
 
+        # Beta Seguro
+        beta_raw = info.get('beta', 1.0)
+        if beta_raw is None: beta_raw = 1.0
+
         return {
             "ticker": ticker,
             "cotacao": price,
+            "market_cap": market_cap,
             "lpa_yahoo": info.get('trailingEps'), 
             "vpa_yahoo": info.get('bookValue'),
             "div_12m": div_12m,
@@ -72,20 +103,23 @@ def obter_dados_yahoo(ticker: str) -> dict:
             "margem_liq": info.get('profitMargins'),
             "roe": roe,
             "crescimento_receita": info.get('revenueGrowth', 0.05),
-            "beta": info.get('beta', 1.0),
+            "beta": beta_raw,
             "fcff_por_acao": fcff_per_share,
             "divida_liquida_por_acao": net_debt_per_share,
             "total_acoes": shares,
             "setor": info.get('sector', 'Unknown'),
             "industria": info.get('industry', 'Unknown'),
             "nome": info.get('longName', ticker),
-            # Dados Forenses
+            # Dados Forenses & Valuation Avançado
             "receita_liquida": info.get('totalRevenue', 0),
             "ebitda": info.get('ebitda', 0),
             "lucro_liquido": info.get('netIncomeToCommon', 0),
             "fluxo_caixa_operacional": ocf,
             "divida_total": total_debt,
-            "caixa_total": cash
+            "caixa_total": cash,
+            "tax_rate_efetiva": tax_rate,
+            "custo_divida_bruto": cost_of_debt,
+            "despesa_financeira": interest_expense
         }
     except Exception as e:
         print(f"Erro Yahoo ({ticker}): {e}")

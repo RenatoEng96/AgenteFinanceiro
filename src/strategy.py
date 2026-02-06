@@ -25,14 +25,43 @@ class Estrategista:
         
         self.params['engine'] = 'FINANCEIRO' if is_financial else 'PADRAO'
 
-        # --- 2. CÁLCULO DINÂMICO DO CUSTO DE CAPITAL (CAPM) ---
-        # Obtemos o Ke (Custo de Equity) baseado na Selic atual.
+        # --- 2. CÁLCULO EFICIENTE DO CUSTO DE CAPITAL (WACC) ---
+        # 1. Custo de Capital Próprio (Ke) via CAPM
         dados_capm = self.macro.calcular_ke(beta)
-        ke_base = dados_capm['ke']
+        ke = dados_capm['ke']
         
-        # Para Bancos, usamos Ke puro como taxa de desconto.
-        # Para Indústrias, usamos WACC (que aqui simplificamos conservadoramente como Ke).
-        taxa_desconto = ke_base
+        # 2. Dados de Estrutura de Capital
+        d = self.dados.get('divida_total', 0)
+        e_mkt = self.dados.get('market_cap', 0)
+        kd_bruto = self.dados.get('custo_divida_bruto', 0.12)
+        tax_rate = self.dados.get('tax_rate_efetiva', 0.34)
+        
+        wacc_calc = ke # Default fallback
+        
+        # Se for empresa Não-Financeira, calculamos WACC completo
+        if not is_financial and e_mkt > 0:
+            # Pesos de Capital (Market Value)
+            total_cap = d + e_mkt
+            w_d = d / total_cap
+            w_e = e_mkt / total_cap
+            
+            # Custo da Dívida Líquido de IR (Tax Shield)
+            kd_net = kd_bruto * (1 - tax_rate)
+            
+            # Fórmula WACC
+            wacc_calc = (ke * w_e) + (kd_net * w_d)
+            wacc_calc = max(0.08, wacc_calc) # Floor de segurança
+            
+            # Atualiza metadados para auditoria
+            self.params['wacc_components'] = {
+                'Ke': ke, 'Kd_Net': kd_net, 
+                'We': w_e, 'Wd': w_d, 
+                'TaxRate': tax_rate
+            }
+
+        # Para Bancos, usamos Ke puro como taxa de desconto (FCFE/DDM).
+        # Para Indústrias, usamos o WACC calculado.
+        taxa_desconto = ke if is_financial else wacc_calc
 
         # --- 3. CLASSIFICAÇÃO E AJUSTES DE RISCO ---
         
@@ -87,8 +116,8 @@ class Estrategista:
             taxa_desconto += 0.010
             self.perfil += " [No Moat]"
         
-        # Trava de segurança (WACC/Ke Floor e Cap)
-        self.params['wacc_base'] = max(0.09, min(taxa_desconto, 0.25))
+        # Trava de segurança Final (WACC/Ke Floor e Cap)
+        self.params['wacc_base'] = max(0.08, min(taxa_desconto, 0.25))
         
         # --- 5. AJUSTE MACROECONÔMICO (NOVO) ---
         # Refina o crescimento (g) com base no Ciclo

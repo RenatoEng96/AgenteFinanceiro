@@ -167,8 +167,32 @@ def gerar_pdf_v11(dados, valuation, comparables, parecer_texto, perfil_empresa):
 
             t_sens.setStyle(TableStyle(styles_sens))
             story.append(t_sens)
-        
-        # --- 3. ANÁLISE RELATIVA (A GRANDE MUDANÇA) ---
+
+        # --- 2.4 MONTE CARLO (NOVO V12) ---
+        monte_carlo = valuation.get('Monte_Carlo', {})
+        if monte_carlo and 'Mean' in monte_carlo:
+            story.append(Spacer(1, 0.4*cm))
+            story.append(Paragraph("<b>Simulação Probabilística (Monte Carlo - 10k iterações):</b>", style_normal))
+            
+            # Dados da tabela
+            data_mc = [
+                ["Métrica", "Valor", "Métrica", "Valor"],
+                ["Preço Médio", f"R$ {monte_carlo['Mean']}", "VaR 5% (Pessimista)", f"R$ {monte_carlo['VaR_5_Percent']}"],
+                ["Mediana", f"R$ {monte_carlo['Median']}", "Upside 95% (Otimista)", f"R$ {monte_carlo['Upside_95_Percent']}"],
+                ["Prob. Upside", monte_carlo['Upside_Prob'], "Volatilidade (Std)", f"R$ {monte_carlo['Std_Dev']}"]
+            ]
+            
+            t_mc = Table(data_mc, colWidths=[3.5*cm, 3*cm, 3.5*cm, 3*cm])
+            t_mc.setStyle(TableStyle([
+                ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#E1BEE7")), # Roxo claro
+                ('ALIGN', (1,1), (-1,-1), 'CENTER'),
+                ('FONTWEIGHT', (0,0), (-1,0), 'BOLD'),
+            ]))
+            story.append(t_mc)
+            
+            # Pequeno texto explicativo
+            story.append(Paragraph(f"<i>*VaR 5%: Existe 95% de chance do preço justo ser superior a R$ {monte_carlo['VaR_5_Percent']}.</i>", style_small))
         if comparables:
             story.append(Paragraph("3. Valuation Relativo & Pares", style_h1))
             
