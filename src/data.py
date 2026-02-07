@@ -127,8 +127,8 @@ def obter_dados_yahoo(ticker: str) -> dict:
 
 def ler_pdf_local(caminho: str) -> str:
     """
-    Lê 100% do conteúdo de um PDF local.
-    Realiza limpeza básica para otimizar tokens da IA.
+    Lê partes estratégicas de um PDF local (Início e Fim).
+    Otimizado para economizar tokens lendo apenas o essencial.
     """
     if not caminho: return None
     
@@ -140,28 +140,41 @@ def ler_pdf_local(caminho: str) -> str:
         return None
         
     try:
-        print(f"   -> [I/O] Lendo arquivo completo: {os.path.basename(caminho)}...")
+        print(f"   -> [I/O] Lendo arquivo (Otimizado): {os.path.basename(caminho)}...")
         texto_completo = []
         
         with open(caminho, 'rb') as f:
             pdf = pypdf.PdfReader(f)
             num_paginas = len(pdf.pages)
-            print(f"      Processando {num_paginas} páginas...")
+            print(f"      PDF detectado com {num_paginas} páginas.")
             
-            for i, page in enumerate(pdf.pages):
-                texto_pag = page.extract_text()
-                if texto_pag:
-                    # Opcional: Adicionar marcador de página para a IA se referenciar
-                    texto_completo.append(f"--- PÁGINA {i+1} ---")
-                    texto_completo.append(texto_pag)
+            # MELHORIA: Lógica de seleção de páginas estratégicas
+            # Lê as primeiras 15 (Contexto, Destaques) e as últimas 10 (Demonstrações, Notas)
+            indices_para_ler = list(range(min(15, num_paginas)))
+            if num_paginas > 25:
+                inicio_final = max(15, num_paginas - 10)
+                indices_para_ler += list(range(inicio_final, num_paginas))
+            
+            # Remove duplicatas e ordena
+            indices_para_ler = sorted(list(set(indices_para_ler)))
+            print(f"      [Smart Read] Lendo apenas {len(indices_para_ler)} páginas relevantes...")
+
+            for i in indices_para_ler:
+                try:
+                    page = pdf.pages[i]
+                    texto_pag = page.extract_text()
+                    if texto_pag:
+                        texto_completo.append(f"--- PÁGINA {i+1} ---")
+                        texto_completo.append(texto_pag)
+                except Exception as ex_pag:
+                    print(f"      [Aviso] Erro ao ler pág {i+1}: {ex_pag}")
         
         full_text = "\n".join(texto_completo)
         
-        # Limpeza básica para economizar tokens (remove excesso de quebras de linha)
-        # Substitui 3 ou mais quebras de linha por apenas duas
+        # Limpeza básica para economizar tokens
         full_text = re.sub(r'\n{3,}', '\n\n', full_text)
         
-        print(f"      Leitura concluída. Total de caracteres: {len(full_text)}")
+        print(f"      Leitura concluída. Caracteres extraídos: {len(full_text)}")
         return full_text
 
     except Exception as e:
@@ -173,7 +186,7 @@ def validar_dados_interativo(dados: dict) -> dict:
     Verifica se existem chaves críticas zeradas ou nulas.
     Se houver, solicita input do usuário.
     """
-    print("\\n--- VALIDAÇÃO INTERATIVA DE DADOS ---")
+    print("\n--- VALIDAÇÃO INTERATIVA DE DADOS ---")
     
     # Schema: key -> {metadata}
     schema = {
@@ -239,7 +252,7 @@ def validar_dados_interativo(dados: dict) -> dict:
         chk_falta = (valor_atual is None) or (isinstance(valor_atual, (int, float)) and valor_atual == 0)
         
         if chk_falta:
-            print(f"\\n[ATENÇÃO] Dado suspeito: '{meta['nome']}' está {valor_atual}.")
+            print(f"\n[ATENÇÃO] Dado suspeito: '{meta['nome']}' está {valor_atual}.")
             print(f"   Motivo: {meta['motivo']}")
             print(f"   Sugestão: {meta['sugestao']}")
             
@@ -257,8 +270,8 @@ def validar_dados_interativo(dados: dict) -> dict:
                 print("      Entrada inválida. Mantido original.")
                 
     if mudou_algo:
-        print("\\n[OK] Dados atualizados manualmente.")
+        print("\n[OK] Dados atualizados manualmente.")
     else:
-        print("\\n[OK] Nenhuma alteração realizada.")
+        print("\n[OK] Nenhuma alteração realizada.")
         
     return dados

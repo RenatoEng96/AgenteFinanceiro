@@ -63,6 +63,9 @@ def gerar_pdf_v11(dados, valuation, comparables, parecer_texto, perfil_empresa):
         bazin = valuation.get('Bazin', {}) or {}
         lynch = valuation.get('Peter_Lynch', {}) or {}
         
+        # MELHORIA: Capturar Reverse DCF
+        rev_dcf = valuation.get('Reverse_DCF', {})
+        
         data_val = [["Modelo", "Foco", "Preço Justo", "Upside", "Status"]]
         
         # Mapa de Foco por Modelo
@@ -78,7 +81,6 @@ def gerar_pdf_v11(dados, valuation, comparables, parecer_texto, perfil_empresa):
                 valor = model_data.get('Valor') or model_data.get('Preco_Teto')
                 margem = model_data.get('Margem')
                 
-                # Nome de Foco personalizado ou padrão
                 foco_display = mapa_foco.get(model_name, "Intrínseco")
                 if model_data.get('Tipo') == 'Modelo de Dividendos (DDM)':
                     foco_display = "Dividendos Futuros"
@@ -90,6 +92,20 @@ def gerar_pdf_v11(dados, valuation, comparables, parecer_texto, perfil_empresa):
                 
                 if valor and valor > 0:
                     data_val.append([model_name, foco_display, f"R$ {valor}", margem, status])
+
+         # MELHORIA: Adicionar linha do Reverse DCF se existir
+        if rev_dcf and 'Implied_Growth' in rev_dcf:
+            g_impl = rev_dcf['Implied_Growth']
+            if isinstance(g_impl, (int, float)):
+                 # No Reverse DCF, não temos "Preço Justo" (é o preço de tela), 
+                 # mas temos o Crescimento Implícito. Vamos adaptar a visualização.
+                 data_val.append([
+                     "Reverse DCF", 
+                     "Cresc. Implícito", 
+                     f"{g_impl:.1%}", 
+                     "-", 
+                     "Precificado"
+                 ])
 
         t_val = Table(data_val, colWidths=[4*cm, 4.5*cm, 3.5*cm, 2.0*cm, 2.5*cm])
         t_val.setStyle(TableStyle([
