@@ -68,8 +68,8 @@ class AgenteIA:
             print(f"   [IA ERRO] Falha na extração: {e}")
             return {}
 
-    def gerar_parecer_final(self, dados: dict, valuation: dict, comparables: dict, perfil: str, params: dict = None) -> str:
-        if not self.client: return "Parecer indisponível (Sem API Key)."
+    def gerar_parecer_final(self, dados: dict, valuation: dict, comparables: dict, perfil: str, params: dict = None) -> tuple:
+        if not self.client: return "Parecer indisponível (Sem API Key).", "N/A"
         
         dcf = valuation.get('DCF_Adaptativo', {})
         rev_dcf = valuation.get('Reverse_DCF', {})

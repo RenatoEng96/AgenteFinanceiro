@@ -11,8 +11,11 @@ class ValuationEngine:
         divida_pdf = self.dados.get('divida_liquida_total_reais')
         if divida_pdf is not None:
             self.net_debt_per_share = divida_pdf / self.dados.get('total_acoes', 1)
+            print(f"   [VALUATION] Usando Dívida Ajustada (PDF): R$ {divida_pdf:,.2f}")
         else:
+            divida_yahoo = self.dados.get('divida_liquida_por_acao', 0) * self.dados.get('total_acoes', 1)
             self.net_debt_per_share = self.dados.get('divida_liquida_por_acao', 0)
+            print(f"   [VALUATION] Usando Dívida Padrão (Yahoo): R$ {divida_yahoo:,.2f}")
 
     def run(self) -> dict:
         # Métodos Universais

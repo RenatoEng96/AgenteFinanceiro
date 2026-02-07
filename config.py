@@ -3,7 +3,7 @@ import os
 # --- CONFIGURAÇÃO DE API ---
 # Tenta carregar do ambiente ou usa a string direta (não recomendado para prod, mas ok para dev local)
 # Inserir nas aspas "" abaixo a sua chave API do Google Gemini 
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "") # <-- <-- <-- <-- <--
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "AIzaSyBIC7JcFDIiSG92sYq6Cgsn-iFgX3V2vHg") # <-- <-- <-- <-- <--
 
 # --- CONFIGURAÇÃO DE MODELO ---
 # Modelos Gemini que funcionam - gemini-2.5-flash - gemini-3-flash-preview - Inserir um deles dentro das aspas abaixo

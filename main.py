@@ -1,5 +1,5 @@
 import os
-from src.data import obter_dados_yahoo, ler_pdf_local
+from src.data import obter_dados_yahoo, ler_pdf_local, validar_dados_interativo
 from src.strategy import Estrategista
 from src.valuation import ValuationEngine
 from src.comparables import AnalistaRelativo
@@ -35,10 +35,18 @@ def main():
             if texto:
                 # IA extrai dívida auditada e Moat Score
                 dados_pdf = agente_ia.extrair_dados_pdf(texto, dados['nome'])
-                if dados_pdf: dados.update(dados_pdf)
+                if dados_pdf: 
+                    print("\n[IA AUDITORIA] Dados Extraídos do PDF:")
+                    print(f"   > Dívida Líq. Ajustada: R$ {dados_pdf.get('divida_liquida_total_reais', 'N/A')}")
+                    print(f"   > Moat Score: {dados_pdf.get('moat_score', 'N/A')}")
+                    dados.update(dados_pdf)
         else:
             print("Aviso: Arquivo PDF não encontrado. Seguindo sem auditoria.")
 
+    # 3.1 Validação Interativa (Human-in-the-loop)
+    # Garante que dados críticos (como FCFF ou Beta) não sejam zero/None
+    dados = validar_dados_interativo(dados)
+    
     # 4. Definição de Estratégia
     estrategista = Estrategista(dados)
     perfil, params = estrategista.definir_cenario()

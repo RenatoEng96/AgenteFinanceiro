@@ -167,3 +167,98 @@ def ler_pdf_local(caminho: str) -> str:
     except Exception as e:
         print(f"   [ERRO] Falha ao ler PDF: {e}")
         return None
+
+def validar_dados_interativo(dados: dict) -> dict:
+    """
+    Verifica se existem chaves críticas zeradas ou nulas.
+    Se houver, solicita input do usuário.
+    """
+    print("\\n--- VALIDAÇÃO INTERATIVA DE DADOS ---")
+    
+    # Schema: key -> {metadata}
+    schema = {
+        'lpa_yahoo': {
+            'nome': 'LPA (Lucro por Ação)', 
+            'sugestao': 0.0, 
+            'motivo': 'Base para Graham e Valuation Relativo.'
+        },
+        'vpa_yahoo': {
+            'nome': 'VPA (Valor Patrimonial por Ação)', 
+            'sugestao': 0.0, 
+            'motivo': 'Essencial para Graham e Bancos.'
+        },
+        'fcff_por_acao': {
+            'nome': 'FCFF/Ação (Fluxo de Caixa Livre)', 
+            'sugestao': 0.0, 
+            'motivo': 'Motor principal do DCF. Se 0, valuation falha.'
+        },
+        'beta': {
+            'nome': 'Beta', 
+            'sugestao': 1.0, 
+            'motivo': 'Mede o risco sistêmico. Média mercado = 1.0.'
+        },
+        'roe': {
+            'nome': 'ROE', 
+            'sugestao': 0.15, 
+            'motivo': 'Rentabilidade para crescimento sustentável.'
+        },
+        'cotacao': {
+            'nome': 'Cotação Atual',
+            'sugestao': 0.0,
+            'motivo': 'Necessário para calcular upside/downside.'
+        },
+        'margem_liq': {
+            'nome': 'Margem Líquida',
+            'sugestao': 0.10,
+            'motivo': 'Indicador de eficiência e qualidade (Forensic).'
+        },
+        'ebitda': {
+            'nome': 'EBITDA',
+            'sugestao': 0.0,
+            'motivo': 'Proxy de caixa operacional e múltiplos.'
+        },
+        'lucro_liquido': {
+            'nome': 'Lucro Líquido',
+            'sugestao': 0.0,
+            'motivo': 'Base para cálculo de payout e accruals.'
+        },
+        'divida_liquida_por_acao': {
+            'nome': 'Dívida Líquida/Ação',
+            'sugestao': 0.0,
+            'motivo': 'Ajuste do Equity Value.'
+        }
+    }
+
+    mudou_algo = False
+    
+    for chave, meta in schema.items():
+        valor_atual = dados.get(chave)
+        
+        # Critério de "Falta de Dado": None ou Zero (para campos que não deveriam ser zero)
+        # Beta pode ser zero? Raro. Cotação 0? Erro.
+        chk_falta = (valor_atual is None) or (isinstance(valor_atual, (int, float)) and valor_atual == 0)
+        
+        if chk_falta:
+            print(f"\\n[ATENÇÃO] Dado suspeito: '{meta['nome']}' está {valor_atual}.")
+            print(f"   Motivo: {meta['motivo']}")
+            print(f"   Sugestão: {meta['sugestao']}")
+            
+            try:
+                inp = input(f"   >> Digite novo valor (ou Enter para manter {valor_atual}): ").strip()
+                if inp:
+                    # Tenta converter para float (aceita vírgula ou ponto)
+                    novo_val = float(inp.replace(',', '.'))
+                    dados[chave] = novo_val
+                    print(f"      Atualizado para: {novo_val}")
+                    mudou_algo = True
+                else:
+                    print("      Mantido.")
+            except ValueError:
+                print("      Entrada inválida. Mantido original.")
+                
+    if mudou_algo:
+        print("\\n[OK] Dados atualizados manualmente.")
+    else:
+        print("\\n[OK] Nenhuma alteração realizada.")
+        
+    return dados
