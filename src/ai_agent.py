@@ -5,6 +5,13 @@ from google.genai import types
 import config
 
 class AgenteIA:
+    """
+    Interface de comunicação com o Google Gemini.
+    
+    Responsabilidades:
+    1. Auditoria Documental: Ler PDFs e extrair dados contábeis complexos (Dívida, Risco).
+    2. Redação: Escrever o Memorando de Investimento com tom profissional (Equity Research).
+    """
     def __init__(self):
         if not config.GOOGLE_API_KEY:
             print("AVISO: API Key não configurada. IA inativa.")
@@ -13,8 +20,14 @@ class AgenteIA:
             self.client = genai.Client(api_key=config.GOOGLE_API_KEY)
             
     def extrair_dados_pdf(self, texto_pdf: str, nome_empresa: str) -> dict:
+    def extrair_dados_pdf(self, texto_pdf: str, nome_empresa: str) -> dict:
         """
-        Analisa o RELATÓRIO COMPLETO (100% das páginas).
+        Analisa o texto extraído do RELATÓRIO para buscar dados que APIs não fornecem bem.
+        
+        Prompt Otimizado para:
+        - Identificar endividamento real (incluindo fora do balanço se citado).
+        - Detectar riscos jurídicos ou regulatórios graves.
+        - Dar uma nota Qualitativa de Moat (Fosso Econômico).
         """
         if not self.client or not texto_pdf: return {}
         
@@ -69,6 +82,13 @@ class AgenteIA:
             return {}
 
     def gerar_parecer_final(self, dados: dict, valuation: dict, comparables: dict, perfil: str, params: dict = None) -> tuple:
+        """
+        Compila todos os dados estruturados (Valuation, Macro, Comparables, Forensic)
+        e solicita ao Gemini que escreva um Memorando de Investimento coeso.
+        
+        O Prompt injeta uma persona de 'Sócio Sênior de Fundo' para garantir
+        um tom cético, analítico e direto (Top-down approach).
+        """
         if not self.client: return "Parecer indisponível (Sem API Key).", "N/A"
         
         dcf = valuation.get('DCF_Adaptativo', {})

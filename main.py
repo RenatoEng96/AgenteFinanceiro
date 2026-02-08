@@ -7,7 +7,28 @@ from src.ai_agent import AgenteIA
 from src.report import gerar_pdf_v11
 from src.memorial import MemorialLog
 
+"""
+Módulo Principal (Orquestrador) - Agente Financeiro V12
+-------------------------------------------------------
+Este arquivo é o ponto de entrada da aplicação. Ele coordena o fluxo de execução entre
+os diversos agentes especializados (Data, Strategy, Valuation, AI, Report).
+
+Fluxo de Execução:
+1. Coleta de Dados (Yahoo Finance).
+2. Leitura de Relatórios em PDF (Opcional).
+3. Validação Interativa dos Dados (Human-in-the-loop).
+4. Definição de Estratégia de Valuation (Growth vs Value vs Commodity).
+5. Execução dos Motores de Valuation (DCF, Graham, Bazin, etc.).
+6. Análise Relativa (Comparação com pares do setor).
+7. Geração da Tese de Investimento via IA (Google Gemini).
+8. Geração do Relatório PDF Final.
+"""
+
 def main():
+    """
+    Função principal que orquestra todo o processo de análise.
+    Não recebe argumentos via CLI, mas solicita input interativo do usuário.
+    """
     print("\n--- AGENTE FINANCEIRO V12 (RIGOROSO) ---\n")
     ticker = input("Ticker (ex: WEGE3, PETR4): ").strip().upper() or "WEGE3"
     

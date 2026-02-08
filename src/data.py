@@ -5,8 +5,21 @@ import re
 
 def obter_dados_yahoo(ticker: str) -> dict:
     """
-    Coleta dados fundamentais robustos do Yahoo Finance.
-    Adiciona sufixo .SA se necessário.
+    Coleta dados fundamentais robustos do Yahoo Finance via biblioteca yfinance.
+    
+    Args:
+        ticker (str): Código da ação (ex: 'WEGE3', 'PETR4').
+        
+    Returns:
+        dict: Dicionário contendo dados financeiros normalizados, incluindo:
+            - Estrutura de Capital (Dívida, Caixa).
+            - Múltiplos (P/L, EV/EBITDA, P/VP).
+            - Rentabilidade (ROE, Margens).
+            - Dados calculados (WACC inputs, FCFF estimado).
+            
+    Tratamento de Erros:
+        - Adiciona sufixo '.SA' automaticamente se omitido.
+        - Usa valores fallback sensatos para dados faltantes (ex: Tax Rate 34%).
     """
     if not ticker.endswith(".SA") and not ticker.startswith("^"): 
         ticker = f"{ticker}.SA"
@@ -127,8 +140,18 @@ def obter_dados_yahoo(ticker: str) -> dict:
 
 def ler_pdf_local(caminho: str) -> str:
     """
-    Lê partes estratégicas de um PDF local (Início e Fim).
-    Otimizado para economizar tokens lendo apenas o essencial.
+    Lê partes estratégicas de um PDF local (Relatório Anual/Trimestral).
+    
+    Estratégia de Leitura "Smart Read":
+    - Para economizar tokens da IA e evitar ruído, não lemos o PDF inteiro se for muito grande.
+    - Lemos as primeiras 15 páginas (que contêm a Mensagem da Administração e Destaques).
+    - Lemos as últimas 10 páginas (que contêm as Demonstrações Financeiras e Notas Explicativas).
+    
+    Args:
+        caminho (str): Caminho absoluto ou relativo para o arquivo PDF.
+        
+    Returns:
+        str: Texto extraído e concatenado das páginas selecionadas. Retorna None se falhar.
     """
     if not caminho: return None
     
@@ -183,8 +206,20 @@ def ler_pdf_local(caminho: str) -> str:
 
 def validar_dados_interativo(dados: dict) -> dict:
     """
-    Verifica se existem chaves críticas zeradas ou nulas.
-    Se houver, solicita input do usuário.
+    Realiza uma validação "Human-in-the-loop" dos dados coletados.
+    
+    Por que isso é necessário?
+    APIs financeiras gratuitas (como Yahoo Finance) frequentemente retornam zeros ou Nones
+    para dados críticos (ex: Beta, FCFF, Dívida Líquida), o que quebraria os modelos matemáticos.
+    
+    Esta função verifica chaves críticas e, se suspeitas, pede ao usuário para
+    confirmar ou corrigir o valor manualmente no terminal.
+    
+    Args:
+        dados (dict): Dicionário de dados coletados.
+        
+    Returns:
+        dict: Dicionário de dados corrigido/validado.
     """
     print("\n--- VALIDAÇÃO INTERATIVA DE DADOS ---")
     

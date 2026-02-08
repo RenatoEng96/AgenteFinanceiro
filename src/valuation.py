@@ -9,6 +9,18 @@ except ImportError:
     NUMPY_AVAILABLE = False
 
 class ValuationEngine:
+    """
+    Motor matemático que executa múltiplos modelos de precificação.
+    
+    Modelos Implementados:
+    1. Graham: Valor Intrínseco Clássico (focado em ativos e lucros).
+    2. Bazin: Preço Teto baseado em dividendos (focado em renda).
+    3. Peter Lynch: Valor Justo baseado em crescimento (PEG Ratio).
+    4. DCF Adaptativo: Fluxo de Caixa Descontado ajustado ao perfil da empresa.
+    5. Valuation Financeiro (DDM): Modelo de Dividendos para Bancos.
+    6. Monte Carlo: Simulação probabilística de cenários.
+    7. Auditoria Forense: Checagem de qualidade dos lucros (Accruals).
+    """
     def __init__(self, dados: dict, estrategia_params: dict):
         self.dados = dados
         self.params = estrategia_params
@@ -37,8 +49,12 @@ class ValuationEngine:
         self._monte_carlo_simulation()
         return self.resultados
 
-    # Métodos Graham, Bazin, Lynch mantidos iguais (omitidos para brevidade, mas devem estar no arquivo final)
+    # Métodos Graham, Bazin, Lynch
     def _graham(self):
+        """
+        Fórmula de Benjamin Graham: VI = Raiz(22.5 * LPA * VPA).
+        Ideal para empresas industriais e de valor.
+        """
         lpa = self.dados.get('lpa_oficial') or self.dados.get('lpa_yahoo')
         vpa = self.dados.get('vpa_oficial') or self.dados.get('vpa_yahoo')
         if lpa and vpa and lpa > 0 and vpa > 0:
@@ -48,6 +64,10 @@ class ValuationEngine:
             self.resultados['Graham'] = {'Valor': 0, 'Margem': 'N/A'}
 
     def _bazin(self):
+        """
+        Método Décio Bazin: Preço Justo = Yield Esperado (6%).
+        Foca em empresas pagadoras de dividendos.
+        """
         div = self.dados.get('div_12m')
         if div and div > 0:
             teto = div / 0.06
@@ -60,6 +80,10 @@ class ValuationEngine:
             self.resultados['Bazin'] = {'Preco_Teto': 0, 'Margem': 'N/A'}
 
     def _peter_lynch(self):
+        """
+        Fair Value = LPA * (Crescimento + Dividend Yield).
+        Se PEG Ratio < 1, é barato. Aqui calculamos o valor onde PEG seria 1.
+        """
         lpa = self.dados.get('lpa_oficial') or self.dados.get('lpa_yahoo') or 0
         if lpa > 0:
             g_proj = self.params.get('g_estagio1', 0.10) * 100
@@ -75,6 +99,18 @@ class ValuationEngine:
 
     # --- DCF CORE OTIMIZADO ---
     def _calcular_dcf_isolado(self, wacc, g1, anos_g1, g_perp=None):
+        """
+        Núcleo de cálculo do Discounted Cash Flow (2 Estágios).
+        
+        Args:
+            wacc (float): Taxa de desconto.
+            g1 (float): Taxa de crescimento no estágio explícito.
+            anos_g1 (int): Duração do estágio explícito.
+            g_perp (float): Crescimento na perpetuidade (terminal).
+            
+        Returns:
+            float: Valor Justo por Ação (Equity Value per Share).
+        """
         fcff_base = self.dados.get('fcff_por_acao')
         if not fcff_base or fcff_base <= 0: return 0 
         
@@ -114,6 +150,10 @@ class ValuationEngine:
         return max(0, equity_value)
 
     def _dcf_adaptativo(self):
+        """
+        Configura os parâmetros do DCF com base na Estratégia e executa o cálculo.
+        Se FCFF for negativo, tenta usar uma Proxy baseada em EBITDA (se disponível).
+        """
         wacc = self.params['wacc_base']
         g1 = self.params['g_estagio1']
         anos = self.params['anos_estagio1']
@@ -154,6 +194,15 @@ class ValuationEngine:
         }
 
     def _monte_carlo_simulation(self):
+        """
+        Executa 10.000 simulações variando:
+        - WACC (Taxa de Desconto).
+        - Crescimento (g).
+        - Perpetuidade.
+        
+        Objetivo: Entender a distribuição de probabilidade do valor justo.
+        Gera VaR (Value at Risk) e Probabilidade de Upside.
+        """
         if not NUMPY_AVAILABLE:
             self.resultados['Monte_Carlo'] = {"Erro": "Biblioteca 'numpy' não instalada."}
             return

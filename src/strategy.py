@@ -1,6 +1,15 @@
 from src.macro import MacroEconomia
 
 class Estrategista:
+    """
+    Responsável por definir o perfil de valuation da empresa e calibrar as taxas de desconto.
+    
+    Diferencia empresas entre:
+    - Commodities (Ciclo Curto, WACC ajustado, risco global).
+    - Utilities/Finance (Dividend Models).
+    - Growth/Compounders (Duration longa, crescimento acima do PIB).
+    - Value (Crescimento na linha do PIB).
+    """
     def __init__(self, dados: dict):
         self.dados = dados
         self.perfil = "Indefinido"
@@ -8,6 +17,19 @@ class Estrategista:
         self.macro = MacroEconomia()
     
     def definir_cenario(self) -> tuple:
+        """
+        Analisa os dados qualitativos e quantitativos para configurar os parâmetros
+        do motor de Valuation.
+
+        Lógica Principal:
+        1. Identifica o setor (Financeiro vs Real Economy).
+        2. Calcula o Custo de Capital (WACC/Ke) usando CAPM + Risco País.
+        3. Realiza ajustes finos para "Global Players" (que acessam capital em dólar).
+        4. Define as taxas de crescimento (g) e duração do estágio de crescimento com base no ROE e Moat.
+        
+        Returns:
+            tuple: (Descrição do Perfil, Dicionário de Parâmetros de Valuation)
+        """
         roe = self.dados.get('roe', 0)
         beta = self.dados.get('beta') 
         if beta is None: beta = 1.0
