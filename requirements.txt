@@ -1,0 +1,7 @@
+python-dotenv
+google-genai
+yfinance
+pypdf
+reportlab
+numpy
+requests

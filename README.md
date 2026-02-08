@@ -42,39 +42,40 @@ WACC Dinâmico: Cálculo do Custo Médio Ponderado de Capital ajustado ao Risco 
 
 Relatório PDF Profissional: Gera um PDF completo com Dashboard, Tabelas de Valuation, Heatmaps de Sensibilidade e o Memorando de Investimento escrito pela IA.
 
-🛠️ Instalação e Configuração
+## 🛠️ Instalação e Configuração
 
-Pré-requisitos
+### Pré-requisitos
+- Python 3.10 ou superior.
+- Uma chave de API do Google Gemini (Google AI Studio).
 
-Python 3.10 ou superior.
+### 1. Clonar e Instalar Dependências
 
-Uma chave de API do Google Gemini (Google AI Studio).
-
-1. Clonar e Instalar Dependências
-
+```bash
 # Clone o repositório
-git clone [https://github.com/seu-usuario/AgFin.git](https://github.com/seu-usuario/AgFin.git)
-cd AgFin
+git clone https://github.com/RenatoEng96/AgenteFinanceiro.git
+cd AgenteFinanceiro
 
-# Instale as bibliotecas necessárias
-pip install google-genai yfinance pypdf reportlab numpy requests
+# Instale as dependências
+pip install -r requirements.txt
 
+# (Recomendado não necessário) Crie e ative um ambiente virtual
+python -m venv venv
+# No Windows:
+.\venv\Scripts\activate
+# No Linux/Mac:
+source venv/bin/activate
+```
 
-2. Configurar a API Key
+### 2. Configurar a API Key (Segurança)
 
-Importante: Por segurança, recomenda-se usar variáveis de ambiente.
+O projeto usa variáveis de ambiente para proteger sua chave de API.
 
-No Linux/Mac:
-
-export GOOGLE_API_KEY="SUA_CHAVE_AQUI"
-
-
-No Windows (PowerShell):
-
-$env:GOOGLE_API_KEY="SUA_CHAVE_AQUI"
-
-
-Alternativamente (apenas para testes locais), você pode editar o arquivo config.py, mas cuidado para não commitar sua chave.
+1.  Renomeie o arquivo `.env.example` para `.env` ou crie um novo arquivo chamado `.env` na raiz do projeto.
+2.  Abra o arquivo `.env` e adicione sua chave:
+    ```env
+    GOOGLE_API_KEY=AIzaSy...SuaChaveAqui
+    ```
+    > **IMPORTANTE:** O arquivo `.env` contém sua chave secreta e **não deve** ser compartilhado ou enviado para o GitHub. O arquivo `.gitignore` já está configurado para excluí-lo.
 
 ▶️ Como Usar
 
@@ -96,6 +97,7 @@ Ao final, o sistema exibe o parecer no terminal e gera um arquivo PDF na pasta r
 
 🗂️ Estrutura do Projeto
 
+```text
 AgFin/
 │
 ├── main.py              # Ponto de entrada (Orquestrador)
@@ -114,6 +116,7 @@ AgFin/
 │   └── memorial.py      # Log de auditoria dos cálculos
 │
 └── README.md            # Documentação
+```
 
 
 ⚠️ Isenção de Responsabilidade (Disclaimer)
