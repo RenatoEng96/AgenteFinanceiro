@@ -20,7 +20,6 @@ class AgenteIA:
             self.client = genai.Client(api_key=config.GOOGLE_API_KEY)
             
     def extrair_dados_pdf(self, texto_pdf: str, nome_empresa: str) -> dict:
-    def extrair_dados_pdf(self, texto_pdf: str, nome_empresa: str) -> dict:
         """
         Analisa o texto extraído do RELATÓRIO para buscar dados que APIs não fornecem bem.
         
