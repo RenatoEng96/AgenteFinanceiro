@@ -9,7 +9,7 @@ load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # --- CONFIGURAÇÃO DE MODELO ---
-# Modelos Gemini que funcionam - gemini-2.5-flash - gemini-3-flash-preview - Inserir um deles dentro das aspas abaixo
+# Modelos Gemini que funcionam - gemini-2.5-flash - gemini-3-flash-preview - gemini-3-pro-preview Inserir um deles dentro das aspas abaixo
 MODEL_NAME = "gemini-3-flash-preview" 
 
 # --- MAPA DE PARES (COMPARABLES) ---
@@ -22,7 +22,7 @@ SECTOR_PEERS_MAP = {
     'Utilities': ['ELET3', 'EQTL3', 'CPFE3', 'CMIG4', 'TRPL4'],
     'Consumer Defensive': ['ABEV3', 'CRFB3', 'ASAI3', 'JBSS3', 'BRFS3'],
     'Consumer Cyclical': ['LREN3', 'MGLU3', 'ARZZ3', 'SOMA3', 'VIVA3'],
-    'Industrials': ['WEGE3', 'TASA4', 'EMBR3', 'RAIL3', 'AZUL4'],
+    'Industrials': ['WEGE3', 'TASA4', 'EMBJ3', 'RAIL3', 'AZUL4'],
     'Real Estate': ['CYRE3', 'EZTC3', 'MRVE3', 'HYPE3'], # Hype as vezes cai aqui
     'Healthcare': ['RDOR3', 'HAPV3', 'FLRY3', 'RADL3'],
     'Technology': ['TOTS3', 'LWSA3', 'INTB3']

@@ -38,11 +38,20 @@ class AnalistaRelativo:
         
         if not resultados_pares: return None
 
-        # --- 1. CÁLCULO DAS MÉDIAS DO SETOR ---
-        # Usamos listas limpas para evitar None ou zeros que distorcem a média
+        # --- 1. CÁLCULO DAS MEDIANAS DO SETOR (Robusto a Outliers) ---
+        # Usamos listas limpas e filtramos distorções (ex: P/L de 500x)
         def media_clean(chave):
-            vals = [d.get(chave) for d in resultados_pares if d.get(chave) is not None and d.get(chave) != 0]
-            return statistics.mean(vals) if vals else 0
+            # Filtra valores negativos, zeros ou absurdamente altos (> 80x)
+            # Empresas em turnaround/prejuízo distorcem múltiplos.
+            vals = [
+                d.get(chave) for d in resultados_pares 
+                if d.get(chave) is not None 
+                and 0.1 < d.get(chave) < 80.0
+            ]
+            
+            if not vals: return 0
+            # Median é melhor que Mean para pequenos samples com outliers
+            return statistics.median(vals)
 
         avg_pl = media_clean('pl')
         avg_evebitda = media_clean('ev_ebitda')

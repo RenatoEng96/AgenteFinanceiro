@@ -75,12 +75,31 @@ class AgenteIA:
                     temperature=0.1
                 )
             )
-            return json.loads(response.text.strip())
+            txt = response.text.strip()
+            # Limpeza de Markdown se houver
+            if txt.startswith("```"):
+                txt = txt.split("```")[1]
+                if txt.startswith("json"): 
+                    txt = txt[4:]
+            
+            parsed = json.loads(txt.strip())
+            
+            # Garante que seja um dicionário
+            if isinstance(parsed, list):
+                if len(parsed) > 0 and isinstance(parsed[0], dict):
+                    return parsed[0]
+                return {}
+                
+            if isinstance(parsed, dict):
+                return parsed
+                
+            return {}
+            
         except Exception as e: 
             print(f"   [IA ERRO] Falha na extração: {e}")
             return {}
 
-    def gerar_parecer_final(self, dados: dict, valuation: dict, comparables: dict, perfil: str, params: dict = None) -> tuple:
+    def gerar_parecer_final(self, dados: dict, valuation: dict, comparables: dict, perfil: str, params: dict = None, consensus: dict = None) -> tuple:
         """
         Compila todos os dados estruturados (Valuation, Macro, Comparables, Forensic)
         e solicita ao Gemini que escreva um Memorando de Investimento coeso.
@@ -141,6 +160,31 @@ class AgenteIA:
         elif 'Status' in monte_carlo:
             mc_text = f"Simulação abortada: {monte_carlo['Status']}"
 
+        # Extração de Outros Métodos de Valuation
+        graham = valuation.get('Graham', {})
+        bazin = valuation.get('Bazin', {})
+        lynch = valuation.get('Peter_Lynch', {})
+        
+        outros_valuation_text = f"""
+           - Benjamin Graham (Valor Intrínseco): R$ {graham.get('Valor', 0)} (Margem: {graham.get('Margem', 'N/A')}%)
+           - Décio Bazin (Preço Teto Dividendos): R$ {bazin.get('Preco_Teto', 0)} (Yield Atual: {bazin.get('Yield_Atual', 'N/A')})
+           - Peter Lynch (PEG Ratio): R$ {lynch.get('Valor', 0)} (Multiplicador Justo: {lynch.get('Multiplicador_Justo', 'N/A')})
+        """
+        
+        # Extração de Consenso
+        consensus_text = "Consenso não calculado."
+        if consensus:
+            consensus_text = f"""
+            PREÇO ALVO PONDERADO (CONSENSUS): R$ {consensus.get('Consensus_Price', 0)}
+            
+            Composição do Consenso (Pesos Dinâmicos):
+            - DCF (Fluxo de Caixa): R$ {consensus['Breakdown'].get('DCF_Value')} (Peso: {consensus['Weights_Used'].get('DCF'):.0%})
+            - Múltiplos (Relativo): R$ {consensus['Breakdown'].get('Multiples_Avg')} (Peso: {consensus['Weights_Used'].get('Multiples'):.0%})
+            - Clássico (Graham/Bazin): R$ {consensus['Breakdown'].get('Classic_Avg')} (Peso: {consensus['Weights_Used'].get('Classic'):.0%})
+            
+            Drivers do Consenso: {consensus.get('Drivers')}
+            """
+
         prompt = f"""
         Atue como um SÓCIO SÊNIOR de um Fundo Multi-Estratégia Global. Escreva um MEMORANDO DE INVESTIMENTO de alta convicção sobre {dados.get('ticker')}.
         
@@ -148,12 +192,11 @@ class AgenteIA:
         - Use "First Principles Thinking": Questione os consensos. Por que a empresa lucra? O fosso é real?
         - Seja Cético: Assuma que o mercado é eficiente, a menos que provado o contrário.
         - Macro-Aware: Conecte o ciclo econômico (Juro Real, Inflação) com a tese micro.
+        - Triangulação de Valor: Não confie apenas no DCF. Use O CONSENSO PONDERADO como âncora principal.
         
         CONTEXTO ECONÔMICO (MACRO):
         {macro_text}
-        -> Se o Ciclo for CONTRACIONISTA (Juro Real alto), penalize teses de crescimento longo e valorize fluxo de caixa hoje.
-        -> Se o Ciclo for EXPANSIONISTA, valorize duration e crescimento.
-
+        
         DADOS DA EMPRESA:
         - Ticker: {dados.get('ticker')} ({dados.get('nome')})
         - Cotação: R$ {dados.get('cotacao')} | Market Cap: R$ {dados.get('market_cap', 0)/1e9:.2f}B
@@ -163,28 +206,37 @@ class AgenteIA:
         - Moat Score: {dados.get('moat_score', 'N/A')}/10 ({moat_txt})
 
         AUDITORIA & VALUATION:
-        1. VALUATION INTRÍNSECO (DCF):
+        
+        1. *** CONSENSO DE VALOR (Weighted Fair Value) ***:
+           {consensus_text}
+           
+           (USE ESTE VALOR COMO SUA PRINCIPAL REFERÊNCIA DE PREÇO JUSTO NO PARECER)
+
+        2. DETALHAMENTO DO DCF:
            - Valor Justo (Determinístico): R$ {dcf.get('Valor')} (Margem: {dcf.get('Margem')}%)
            - WACC Usado: {dcf.get('Premissas', {}).get('WACC')} | Crescimento (g): {dcf.get('Premissas', {}).get('Cresc.')}
-           - Reverse DCF: O mercado precifica crescimento implícito de {rev_dcf.get('Implied_Growth', 0):.1%} a.a. (Se aplicável).
+           - Reverse DCF: O mercado precifica crescimento implícito de {rev_dcf.get('Implied_Growth', 0):.1%} a.a.
 
-        2. SIMULAÇÃO DE MONTE CARLO (PROBABILÍSTICA):
+        3. OUTROS MÉTODOS DE VALUATION (CONTRAPONTO):
+           {outros_valuation_text}
+
+        4. SIMULAÇÃO DE MONTE CARLO (PROBABILÍSTICA):
            {mc_text}
 
-        3. VALUATION RELATIVO (PARES):
+        5. VALUATION RELATIVO (PARES):
            - {texto_comps}
-        
-        4. AUDITORIA FORENSE (QUALIDADE CONTÁBIL):
+           
+        6. AUDITORIA FORENSE (QUALIDADE CONTÁBIL):
            - Score de Qualidade: {forensic.get('Score', 10)}/10
            - Alertas detectados pelo algoritmo:
            {forensic_text}
            
-        5. RISCOS REPORTADOS:
+        6. RISCOS REPORTADOS:
            - {riscos}
 
         ESTRUTURA OBRIGATÓRIA DO MEMORANDO:
         ## 1. Executive Summary & Veredito
-        Comece com a conclusão. COMPRA (Buy), MANTER (Hold) ou VENDA (Sell). Defina o "Target Price" (use o DCF como base, ajustado pelo seu julgamento qualitativo). Resuma a tese em 3 bullets matadores.
+        Comece com a conclusão. COMPRA (Buy), MANTER (Hold) ou VENDA (Sell). Defina o "Target Price" (baseado no Consenso Ponderado, mas ajustado pelo seu feeling qualitativo). Resuma a tese em 3 bullets matadores.
 
         ## 2. A Tese Micro vs. O Cenário Macro
         Como essa empresa navega o ciclo atual ({macro_text})? A inflação/juros ajudam ou atrapalham?
@@ -192,13 +244,11 @@ class AgenteIA:
         ## 3. Qualidade & Fosso (The Moat)
         O Moat é durável? A empresa tem poder de preço? Analise o ROE vs Custo de Capital.
 
-        ## 4. Valuation Intrínseco & Cenários
-        Discuta o Valor Justo do DCF ({dcf.get('Valor')}) e compare com os múltiplos.
-        ANÁLISE DE SENSIBILIDADE (Stress Test):
-        - O modelo indica um range de valor entre R$ {min_val:.2f} (Cenário Pessimista) e R$ {max_val:.2f} (Cenário Otimista).
-        - Com base nisso, quão segura é a Margem de Segurança atual?
-        *Comente explicitamente sobre os alertas da Auditoria Forense se houverem.*
-
+        ## 4. Valuation Integrado (Triangulação)
+        DISCUTA O VALOR DE CONSENSO (R$ {consensus.get('Consensus_Price', 0)}) E COMO ELE RECONCILIA AS DIFERENÇAS ENTRE DCF E MÚLTIPLOS.
+        - Se o DCF for muito maior que os múltiplos, explique se o mercado está míope ou se o DCF está otimista demais.
+        - Use a Análise de Sensibilidade (Range: R$ {min_val:.2f} - R$ {max_val:.2f}) para definir a zona de compra.
+        
         ## 5. Riscos do "Bear Case"
         O que pode destruir essa tese? (Regulação, concorrência, ciclo, fraude contábil). Seja brutal.
 

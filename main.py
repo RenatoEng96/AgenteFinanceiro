@@ -24,6 +24,8 @@ Fluxo de Execução:
 8. Geração do Relatório PDF Final.
 """
 
+from src.consensus import ConsensusCalculator
+
 def main():
     """
     Função principal que orquestra todo o processo de análise.
@@ -84,6 +86,19 @@ def main():
     if rev:
         print(f"   [REVERSE DCF] Mercado precifica crescimento de {rev.get('Implied_Growth', 0):.1%} a.a.")
 
+    # Exibe resumo de Outros Métodos
+    graham = res_valuation.get('Graham', {})
+    if graham.get('Valor'):
+        print(f"   [GRAHAM] Valor Intrínseco: R$ {graham.get('Valor'):.2f} (Margem: {graham.get('Margem')}%)")
+        
+    bazin = res_valuation.get('Bazin', {})
+    if bazin.get('Preco_Teto'):
+        print(f"   [BAZIN] Preço Teto: R$ {bazin.get('Preco_Teto'):.2f} (Yield: {bazin.get('Yield_Atual')})")
+        
+    lynch = res_valuation.get('Peter_Lynch', {})
+    if lynch.get('Valor'):
+        print(f"   [LYNCH] Valor Justo (PEG): R$ {lynch.get('Valor'):.2f}")
+
     # 6. Comparables (Análise Relativa Profunda)
     analista_rel = AnalistaRelativo(dados['ticker'], dados['setor'], dados)
     res_comparables = analista_rel.executar_analise()
@@ -92,10 +107,18 @@ def main():
         precos = res_comparables.get('precos_implicitos', {})
         print(f"   [RELATIVO] Preço Implícito (P/L): R$ {precos.get('Target_PL', 0):.2f}")
 
-    # 7. Geração de Parecer (IA) e PDF
+    # 7. Consensus Valuation (Ponderação)
+    calc_consenso = ConsensusCalculator(res_valuation, res_comparables, params.get('valuation_weights', {}))
+    res_consenso = calc_consenso.calculate()
+    memorial.register_data('consensus_results', res_consenso)
+    
+    print(f"\n[CONSENSUS] Preço Alvo Ponderado: R$ {res_consenso.get('Consensus_Price', 0):.2f}")
+    print(f"   > Drivers: {res_consenso.get('Drivers')}")
+
+    # 8. Geração de Parecer (IA) e PDF
     print("\n--- Gerando Tese de Investimento Detalhada (Hedge Fund Style) ---")
     
-    parecer_texto, prompt_usado = agente_ia.gerar_parecer_final(dados, res_valuation, res_comparables, perfil, params)
+    parecer_texto, prompt_usado = agente_ia.gerar_parecer_final(dados, res_valuation, res_comparables, perfil, params, res_consenso)
     memorial.register_data('llm_prompt', prompt_usado)
     memorial.register_data('llm_response', parecer_texto)
     

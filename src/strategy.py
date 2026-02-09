@@ -138,6 +138,33 @@ class Estrategista:
             taxa_desconto -= 0.010 # -1% Bônus de Qualidade Extrema
             self.perfil += " [Moat Premium]"
         
+        # --- 4. PESOS DE VALUATION (Consenso) ---
+        # Define a relevância de cada método para o cálculo do Valor Justo Final
+        
+        weights = {
+            'DCF': 0.50,      # Padrão: DCF ainda é rei
+            'Multiples': 0.30, # Relativo tem peso relevante
+            'Classic': 0.20    # Graham/Bazin como âncora de valor
+        }
+
+        if is_financial:
+            # Bancos: Dividendo (DDM/Bazin) e P/VP são cruciais. DCF tradicional falha.
+            weights = {'DCF': 0.20, 'Multiples': 0.40, 'Classic': 0.40}
+            
+        elif is_commodity:
+            # Commodities: Ciclo curto. O passado (Bazin/Yield) e o presente (Múltiplos) importam mais que o futuro incerto (DCF).
+            weights = {'DCF': 0.25, 'Multiples': 0.45, 'Classic': 0.30}
+            
+        elif self.perfil == "COMPOUNDER (Elite)":
+            # Compounders: O futuro (Crescimento) é o que justifica o prêmio. DCF domina.
+            weights = {'DCF': 0.60, 'Multiples': 0.25, 'Classic': 0.15}
+            
+        elif "VALUE" in self.perfil:
+            # Value: Ativos descontados. Graham e Múltiplos brilham.
+            weights = {'DCF': 0.30, 'Multiples': 0.40, 'Classic': 0.30}
+
+        self.params['valuation_weights'] = weights
+        
         # Salva WACC Final
         self.params['wacc_base'] = max(0.08, taxa_desconto)
         self.params['capm_data'] = dados_capm
